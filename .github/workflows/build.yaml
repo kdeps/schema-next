@@ -1,0 +1,169 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for release notes generation
+        
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+        cache: gradle
+        
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      
+    - name: Install PKL CLI
+      uses: pkl-community/setup-pkl@v0
+      with:
+        pkl-version: 0.28.2
+    
+    - name: Verify PKL installation and install pkl-gen-go
+      run: |
+        pkl --version
+        which pkl
+        
+        # Check if pkl-gen-go is available
+        if command -v pkl-gen-go &> /dev/null; then
+          echo "pkl-gen-go is available"
+          pkl-gen-go --help
+        else
+          echo "pkl-gen-go not found, installing via Go..."
+          
+          # Install pkl-gen-go via Go (more reliable than downloading)
+          echo "Installing pkl-gen-go using Go..."
+          go install github.com/apple/pkl-go/cmd/pkl-gen-go@latest
+          
+          # Add Go bin to PATH if needed
+          export PATH=$PATH:$(go env GOPATH)/bin
+          
+          # Verify installation
+          if command -v pkl-gen-go &> /dev/null; then
+            echo "pkl-gen-go installed successfully via Go"
+            pkl-gen-go --help
+          else
+            echo "pkl-gen-go still not found after Go install, checking GOPATH..."
+            echo "GOPATH: $(go env GOPATH)"
+            echo "Contents of Go bin directory:"
+            ls -la $(go env GOPATH)/bin/ || echo "Go bin directory not found"
+            
+            # Try direct path
+            if [ -f "$(go env GOPATH)/bin/pkl-gen-go" ]; then
+              echo "Found pkl-gen-go in GOPATH, creating symlink..."
+              sudo ln -sf $(go env GOPATH)/bin/pkl-gen-go /usr/local/bin/pkl-gen-go
+              pkl-gen-go --help
+            else
+              echo "pkl-gen-go installation failed"
+              exit 1
+            fi
+          fi
+        fi
+        
+        # Verify both tools are working
+        pkl --version
+        pkl-gen-go --help
+        
+    - name: Setup Go (for assets tests)
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+        
+    - name: Validate release notes generation
+      run: |
+        echo "Validating release notes generation..."
+        chmod +x scripts/generate_release_notes.sh
+        ./scripts/generate_release_notes.sh --help
+        ./scripts/generate_release_notes.sh --max-releases 3 > test_release_notes.md
+        echo "Release notes generation validated successfully!"
+        rm test_release_notes.md
+        
+    - name: Run unified PKL test suite
+      run: |
+        echo "Running unified PKL test suite with report generation..."
+        make test
+        
+    - name: Upload PKL test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: pkl-test-report
+        path: test/TEST_REPORT.md
+        retention-days: 30
+        
+    - name: Build and generate code
+      run: |
+        echo "Building project with release notes generation..."
+        echo "Current directory contents before build:"
+        ls -la
+        echo "Checking if gen directory exists before build:"
+        ls -la gen/ || echo "gen directory not found before build"
+        
+        echo "Running make build..."
+        make build
+        
+        echo "Current directory contents after build:"
+        ls -la
+        echo "Checking if gen directory exists after build:"
+        ls -la gen/ || echo "gen directory not found after build"
+        
+    - name: Validate generated files
+      run: |
+        echo "Validating generated Go files..."
+        echo "Current working directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        
+        if [ ! -d "gen" ]; then
+          echo "Error: gen directory not found"
+          echo "Looking for gen directory in subdirectories:"
+          find . -name "gen" -type d 2>/dev/null || echo "No gen directory found anywhere"
+          
+          echo "Attempting to regenerate gen directory..."
+          if command -v pkl-gen-go &> /dev/null; then
+            echo "Running manual generation..."
+            make generate || echo "Manual generation failed"
+            
+            if [ -d "gen" ]; then
+              echo "Manual generation succeeded!"
+            else
+              echo "Manual generation still failed, checking for alternative solutions..."
+              echo "This may indicate a configuration issue with the PKL files or pkl-gen-go"
+              exit 1
+            fi
+          else
+            echo "pkl-gen-go not available for manual generation"
+            exit 1
+          fi
+        fi
+        
+        echo "gen directory found, checking contents:"
+        ls -la gen/
+        
+        if [ ! -f "README.md" ]; then
+          echo "Error: README.md not found"
+          exit 1
+        fi
+        
+        echo "All generated files validated successfully!"
+        
+    - name: Archive generated files
+      uses: actions/upload-artifact@v4
+      with:
+        name: generated-files
+        path: |
+          gen/
+          README.md
+          assets/pkl/
+        retention-days: 5 

@@ -1,0 +1,292 @@
+/// Abstractions for Data folder
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/data" }
+
+open module org.kdeps.pkl.Data
+
+extends "Utils.pkl"
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "pkl:json"
+import "pkl:test"
+import "Agent.pkl" as agent
+import "PklResource.pkl" as pklres
+
+/// Retrieves a data value for the given resource ID and key
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [key]: The key to retrieve
+/// [String]: The data value
+function get(actionID: String?, key: String?): String =
+    if (actionID != null && key != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (value = test.catchOrNull(() -> read("pklres://?op=get&collection=" + resolvedID + "&key=" + key)?.text))
+        if (value != null && value != "")
+            let (isBase64Result = test.catchOrNull(() -> isBase64(value)))
+            if (isBase64Result == true)
+                value
+            else value
+        else ""
+    else ""
+
+/// Retrieves all data for the given resource ID as a mapping
+/// Uses relational algebra for better performance and caching
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [Mapping<String, String>]: The data mapping
+function getAll(actionID: String?): Mapping<String, String> =
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        // Use relational project to get all data efficiently
+        let (projection = pklres.project(resolvedID, new pklres.ProjectionCondition {}))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else
+            // Fallback to traditional method
+            let (keys = test.catchOrNull(() -> read("pklres://?op=list&collection=" + resolvedID)?.text))
+            if (keys != null && keys != "")
+                let (parsedKeys = keys.parseJsonOrNull())
+                let (keyList = if (parsedKeys != null) parsedKeys as Listing<String> else new Listing<String> {})
+                new Mapping<String, String> {
+                    for (key in keyList) {
+                        [key] = get(actionID, key)
+                    }
+                }
+            else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Sets a data value for the given resource ID and key
+///
+/// [actionID]: The actionID of the resource to set data for
+/// [key]: The key to set
+/// [value]: The value to set
+/// [String]: The set value
+function set(actionID: String?, key: String?, value: String?): String =
+    if (actionID != null && key != null && value != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (result = test.catchOrNull(() -> read("pklres://?op=set&collection=" + resolvedID + "&key=" + key + "&value=" + value)?.text))
+        if (result != null) result else ""
+    else ""
+
+/// Retrieves a file path for the given resource ID and key
+///
+/// [actionID]: The actionID of the resource to retrieve file for
+/// [key]: The key to retrieve
+/// [String]: The file path
+function file(actionID: String?, key: String?): String =
+    if (actionID != null && key != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (value = test.catchOrNull(() -> read("pklres://?op=get&collection=" + resolvedID + "&key=" + key)?.text))
+        if (value != null && value != "")
+            let (isBase64Result = test.catchOrNull(() -> isBase64(value)))
+            if (isBase64Result == true)
+                value
+            else value
+        else ""
+    else ""
+
+/// Retrieves all file paths for the given resource ID as a mapping
+/// Uses relational algebra for better performance and caching
+///
+/// [actionID]: The actionID of the resource to retrieve files for
+/// [Mapping<String, String>]: The file mapping
+function files(actionID: String?): Mapping<String, String> =
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        // Use relational project to get all file data efficiently
+        let (projection = pklres.project(resolvedID, new pklres.ProjectionCondition {}))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = file(actionID, row.data["key"].toString())
+                    }
+                }
+            }
+        else
+            // Fallback to traditional method
+            let (keys = test.catchOrNull(() -> read("pklres://?op=list&collection=" + resolvedID)?.text))
+            if (keys != null && keys != "")
+                let (parsedKeys = keys.parseJsonOrNull())
+                let (keyList = if (parsedKeys != null) parsedKeys as Listing<String> else new Listing<String> {})
+                new Mapping<String, String> {
+                    for (key in keyList) {
+                        [key] = file(actionID, key)
+                    }
+                }
+            else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Sets a file path for the given resource ID and key
+///
+/// [actionID]: The actionID of the resource to set file for
+/// [key]: The key to set
+/// [value]: The file path to set
+/// [String]: The set file path
+function setFile(actionID: String?, key: String?, value: String?): String =
+    if (actionID != null && key != null && value != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (result = test.catchOrNull(() -> read("pklres://?op=set&collection=" + resolvedID + "&key=" + key + "&value=" + value)?.text))
+        if (result != null) result else ""
+    else ""
+
+
+/// Retrieves data with filtering using relational algebra
+/// Uses cached select operations for better performance
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [field]: The field to filter on
+/// [operator]: The comparison operator ("eq", "ne", "gt", "lt", "gte", "lte", "contains", "in")
+/// [value]: The value to compare against
+/// [Mapping<String, String>]: The filtered data mapping
+function getFiltered(actionID: String?, field: String?, operator: String?, value: Dynamic): Mapping<String, String> =
+    if (actionID != null && field != null && operator != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (condition = new pklres.SelectionCondition {
+            field = field
+            operator = operator
+            value = value
+        })
+        let (selection = pklres.select(resolvedID, new Listing<pklres.SelectionCondition> { condition }))
+        if (selection != null && selection.rows != null)
+            new Mapping<String, String> {
+                for (row in selection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves data with multiple filters using relational algebra
+/// Uses cached select operations for better performance
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [conditions]: List of selection conditions
+/// [Mapping<String, String>]: The filtered data mapping
+function getMultiFiltered(actionID: String?, conditions: Listing<Dynamic>): Mapping<String, String> =
+    if (actionID != null && conditions != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (selectionConditions = conditions.map((condition) -> new pklres.SelectionCondition {
+            field = condition["field"] as String
+            operator = condition["operator"] as String
+            value = condition["value"]
+        }))
+        let (selection = pklres.select(resolvedID, selectionConditions))
+        if (selection != null && selection.rows != null)
+            new Mapping<String, String> {
+                for (row in selection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves specific fields from data using relational algebra
+/// Uses cached project operations for better performance
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [fields]: List of fields to include
+/// [Mapping<String, String>]: The projected data mapping
+function getFields(actionID: String?, fields: Listing<String>): Mapping<String, String> =
+    if (actionID != null && fields != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (condition = new pklres.ProjectionCondition {
+            columns = fields
+        })
+        let (projection = pklres.project(resolvedID, condition))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    for (field in fields) {
+                        when (row.data.containsKey(field)) {
+                            [field] = row.data[field].toString()
+                        }
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves data excluding specific fields using relational algebra
+/// Uses cached project operations for better performance
+///
+/// [actionID]: The actionID of the resource to retrieve data for
+/// [excludeFields]: List of fields to exclude
+/// [Mapping<String, String>]: The projected data mapping
+function getExcludingFields(actionID: String?, excludeFields: Listing<String>): Mapping<String, String> =
+    if (actionID != null && excludeFields != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (condition = new pklres.ProjectionCondition {
+            exclude = excludeFields
+        })
+        let (projection = pklres.project(resolvedID, condition))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    for (field in row.data.keys) {
+                        when (!excludeFields.contains(field)) {
+                            [field] = row.data[field].toString()
+                        }
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Joins data from two resources using relational algebra
+/// Uses cached join operations for better performance
+///
+/// [leftActionID]: The left resource actionID
+/// [rightActionID]: The right resource actionID
+/// [leftKey]: The key field in the left resource
+/// [rightKey]: The key field in the right resource
+/// [joinType]: The type of join ("inner", "left", "right", "full")
+/// [Mapping<String, String>]: The joined data mapping
+function joinData(leftActionID: String?, rightActionID: String?, leftKey: String?, rightKey: String?, joinType: String?): Mapping<String, String> =
+    if (leftActionID != null && rightActionID != null && leftKey != null && rightKey != null && joinType != null)
+        let (leftResolvedID = agent.resolveActionID(leftActionID))
+        let (rightResolvedID = agent.resolveActionID(rightActionID))
+        let (condition = new pklres.JoinCondition {
+            leftCollection = leftResolvedID
+            rightCollection = rightResolvedID
+            leftKey = leftKey
+            rightKey = rightKey
+            joinType = joinType
+        })
+        let (join = pklres.join(condition))
+        if (join != null && join.rows != null)
+            new Mapping<String, String> {
+                for (row in join.rows) {
+                    for (field in row.data.keys) {
+                        [field] = row.data[field].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+
+/// Clears the query cache for better memory management
+function clearCache(): String = pklres.clearCache()
+
+/// Sets the cache TTL for query caching
+/// [ttlSeconds]: Time to live in seconds
+function setCacheTTL(ttlSeconds: Int): String = pklres.setCacheTTL(ttlSeconds)
+
+/// Gets cache statistics for monitoring
+function getCacheStats(): Dynamic = pklres.getCacheStats()
+
+/// Performs a cached query with automatic caching
+/// [queryType]: Type of query ("select", "project", "join")
+/// [params]: Query parameters
+function queryWithCache(queryType: String?, params: Dynamic): Dynamic = pklres.queryWithCache(queryType, params)

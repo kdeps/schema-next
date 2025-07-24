@@ -1,0 +1,414 @@
+/// Abstractions for executable resources within KDEPS
+///
+/// This module defines the structure for executable resources that can be used within the Kdeps framework.
+/// It handles command execution, environment variable management, and capturing
+/// standard output and error, as well as handling environment variables and
+/// exit codes. The module provides utilities for retrieving and managing executable
+/// resources based on their identifiers.
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/exec" }
+
+open module org.kdeps.pkl.Exec
+
+extends "Utils.pkl"
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "pkl:json"
+import "pkl:test"
+import "Agent.pkl" as agent
+import "Core.pkl" as core
+import "PklResource.pkl" as pklres
+
+/// Helper function to safely get a value from pklres and return empty string if not available
+function safeGetValue(collection: String?, key: String?): String =
+  if (collection != null && key != null)
+    let (result = core.safeRead("pklres://?op=get&collection=" + collection + "&key=" + key))
+    if (result != null)
+      let (jsonText = result)
+      if (jsonText != "null" && jsonText != "")
+        // For simple strings, return as-is. For nested data, it should already be JSON encoded by Go side
+        jsonText
+      else
+        ""
+    else
+      ""
+  else ""
+
+/// Class representing an executable resource, which includes the command to be executed,
+/// environment variables, and execution details such as outputs and exit codes.
+class ResourceExec {
+    /// Regular expression for validating environment variable names.
+    hidden envStringRegex = Regex(#"^[a-zA-Z_]\w*$"#)
+
+    /// Function to check if a given environment variable name is valid.
+    hidden isValidEnv = (str) -> if (str.matches(envStringRegex)) true else throw("Error: Invalid env name: The env name contains invalid characters. Please ensure it only includes alphanumeric characters (letters and numbers), does not start with a number, and is not empty.")
+
+    /// A mapping of environment variable names to their values.
+    Env: Mapping<String(isValidEnv), String?>?
+
+    /// The command to be executed.
+    Command: String?
+
+    /// The standard error output of the command, if any.
+    Stderr: String?
+
+    /// The standard output of the command, if any.
+    Stdout: String?
+
+    /// The exit code of the command. Defaults to 0 (success).
+    ExitCode: Int? = 0
+
+    /// The file path where the command output value of this resource is saved
+    File: String?
+
+    /// The listing of the item iteration results
+    ItemValues: Listing<String>?
+
+    /// A timestamp of when the command was executed, represented as an unsigned 64-bit integer.
+    Timestamp: Duration?
+
+    /// The timeout duration (in seconds) for the command execution. Defaults to 60 seconds.
+    TimeoutDuration: Duration? = 60.s
+}
+
+/// Retrieves the [ResourceExec] associated with the given [actionID].
+///
+/// If the resource is not found, returns a new [ResourceExec] with default values.
+///
+/// [actionID]: The actionID of the resource to retrieve.
+/// [ResourceExec]: The [ResourceExec] object associated with the resource actionID.
+function resource(actionID: String?): ResourceExec =
+  if (actionID != null)
+    let (resolvedID = agent.resolveActionID(actionID))
+    let (command = safeGetValue(resolvedID, "command"))
+    let (stdout = safeGetValue(resolvedID, "stdout"))
+    let (stderr = safeGetValue(resolvedID, "stderr"))
+    let (exitCode = safeGetValue(resolvedID, "exitCode"))
+    let (file = safeGetValue(resolvedID, "file"))
+    let (timeoutDuration = safeGetValue(resolvedID, "timeoutDuration"))
+    let (timestamp = safeGetValue(resolvedID, "timestamp"))
+    
+    new ResourceExec {
+        Command = if (command != "") command else null
+        Stdout = if (stdout != "") stdout else null
+        Stderr = if (stderr != "") stderr else null
+        ExitCode = if (exitCode != "") exitCode.toInt() else 0
+        File = if (file != "") file else null
+        TimeoutDuration = if (timeoutDuration != "") timeoutDuration.toDuration() else 60.s
+        Timestamp = if (timestamp != "") timestamp.toDuration() else null
+        Env = new Mapping<String, String> {}
+        ItemValues = new Listing<String> {}
+    }
+  else
+    // Return default ResourceExec for null actionID
+    new ResourceExec {}
+
+/// Retrieves the standard error output associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the stderr for.
+/// [str]: The standard error output of the command.
+function stderr(actionID: String?): String? = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "stderr"))
+        if (res != "")
+            res
+        else null
+    else null
+
+/// Retrieves the standard output associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the stdout for.
+/// [str]: The standard output of the command, or the stderr if stdout is empty.
+function stdout(actionID: String?): String? = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "stdout"))
+        if (res != "")
+            res
+        else null
+    else null
+
+/// Retrieves the exit code associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the exit code for.
+/// [int]: The exit code of the command.
+function exitCode(actionID: String?): Int = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "exitCode"))
+        if (res != "") res.toInt() else 0
+    else 0
+
+/// Retrieves the file path containing the command output associated with the specified resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the file for.
+/// Returns the decoded content if the file is Base64-encoded; otherwise, returns the file content as-is.
+function file(actionID: String?): String = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "file"))
+        if (res != "")
+            res
+        else ""
+    else ""
+
+/// Retrieves the item iteration results for the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the item values.
+function itemValues(actionID: String?): Listing<String> = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "itemValues"))
+        if (res != "")
+            if (core.parseJsonOrNull(res) != null) core.parseJsonOrNull(res) as Listing<String> else new Listing<String> {}
+        else new Listing<String> {}
+    else new Listing<String> {}
+
+/// Retrieves the environment variable [envName] associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the environment variable for.
+/// [envName]: The name of the environment variable to retrieve.
+/// [str]: The value of the environment variable, or an empty string if not found.
+function env(actionID: String?, envName: String?): String =
+  if (actionID != null && envName != null)
+    let (resolvedID = agent.resolveActionID(actionID))
+    let (envData = safeGetValue(resolvedID, "env"))
+    if (envData != "")
+        let (envMap = core.parseJsonOrNull(envData))
+        if (envMap != null && envMap is Mapping<String, String>)
+            let (envMapping = envMap as Mapping<String, String>)
+            let (envValue = envMapping.getOrNull(envName))
+            if (envValue != null)
+                envValue
+            else ""
+        else ""
+    else ""
+  else ""
+
+/// Retrieves the command associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the command for.
+/// [str]: The command to be executed.
+function command(actionID: String?): String = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "command"))
+        if (res != "") res else ""
+    else ""
+
+/// Retrieves the timeout duration associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the timeout for.
+/// [Duration]: The timeout duration.
+function timeoutDuration(actionID: String?): Duration = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "timeoutDuration"))
+        if (res != "") res.toDuration() else 60.s
+    else 60.s
+
+/// Retrieves the timestamp associated with the resource [actionID].
+///
+/// [actionID]: The actionID of the resource to retrieve the timestamp for.
+/// [Duration]: The timestamp.
+function timestamp(actionID: String?): Duration = 
+    if (actionID != null)
+        let (resolvedID = agent.resolveActionID(actionID))
+        let (res = safeGetValue(resolvedID, "timestamp"))
+        if (res != "") res.toDuration() else 0.s
+    else 0.s
+
+/// Relational Algebra Enhanced Exec Functions
+///
+///
+/// Retrieves Exec resources with filtering using relational algebra
+/// Uses cached select operations for better performance
+///
+/// [field]: The field to filter on
+/// [operator]: The comparison operator ("eq", "ne", "gt", "lt", "gte", "lte", "contains", "in")
+/// [value]: The value to compare against
+/// [Mapping<String, String>]: The filtered Exec resources
+function getFilteredResources(field: String?, operator: String?, value: Dynamic): Mapping<String, String> =
+    if (field != null && operator != null)
+        let (condition = new pklres.SelectionCondition {
+            field = field
+            operator = operator
+            value = value
+        })
+        let (selection = pklres.select("exec", new Listing<pklres.SelectionCondition> { condition }))
+        if (selection != null && selection.rows != null)
+            new Mapping<String, String> {
+                for (row in selection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves Exec resources with multiple filters using relational algebra
+/// Uses cached select operations for better performance
+///
+/// [conditions]: List of selection conditions
+/// [Mapping<String, String>]: The filtered Exec resources
+function getMultiFilteredResources(conditions: Listing<Dynamic>): Mapping<String, String> =
+    if (conditions != null)
+        let (selectionConditions = conditions.map((condition) -> new pklres.SelectionCondition {
+            field = condition["field"] as String
+            operator = condition["operator"] as String
+            value = condition["value"]
+        }))
+        let (selection = pklres.select("exec", selectionConditions))
+        if (selection != null && selection.rows != null)
+            new Mapping<String, String> {
+                for (row in selection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves specific fields from Exec resources using relational algebra
+/// Uses cached project operations for better performance
+///
+/// [fields]: List of fields to include
+/// [Mapping<String, String>]: The projected Exec resources
+function getResourceFields(fields: Listing<String>): Mapping<String, String> =
+    if (fields != null)
+        let (condition = new pklres.ProjectionCondition {
+            columns = fields
+        })
+        let (projection = pklres.project("exec", condition))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    for (field in fields) {
+                        when (row.data.containsKey(field)) {
+                            [field] = row.data[field].toString()
+                        }
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Retrieves Exec resources excluding specific fields using relational algebra
+/// Uses cached project operations for better performance
+///
+/// [excludeFields]: List of fields to exclude
+/// [Mapping<String, String>]: The projected Exec resources
+function getResourcesExcludingFields(excludeFields: Listing<String>): Mapping<String, String> =
+    if (excludeFields != null)
+        let (condition = new pklres.ProjectionCondition {
+            exclude = excludeFields
+        })
+        let (projection = pklres.project("exec", condition))
+        if (projection != null && projection.rows != null)
+            new Mapping<String, String> {
+                for (row in projection.rows) {
+                    for (field in row.data.keys) {
+                        when (!excludeFields.contains(field)) {
+                            [field] = row.data[field].toString()
+                        }
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Joins Exec resources with another collection using relational algebra
+/// Uses cached join operations for better performance
+///
+/// [otherCollection]: The other collection to join with
+/// [execKey]: The key field in Exec resources
+/// [otherKey]: The key field in the other collection
+/// [joinType]: The type of join ("inner", "left", "right", "full")
+/// [Mapping<String, String>]: The joined resources
+function joinWithCollection(otherCollection: String?, execKey: String?, otherKey: String?, joinType: String?): Mapping<String, String> =
+    if (otherCollection != null && execKey != null && otherKey != null && joinType != null)
+        let (condition = new pklres.JoinCondition {
+            leftCollection = "exec"
+            rightCollection = otherCollection
+            leftKey = execKey
+            rightKey = otherKey
+            joinType = joinType
+        })
+        let (join = pklres.join(condition))
+        if (join != null && join.rows != null)
+            new Mapping<String, String> {
+                for (row in join.rows) {
+                    for (field in row.data.keys) {
+                        [field] = row.data[field].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Searches Exec commands by content using relational algebra
+/// Uses cached select operations with contains operator
+///
+/// [searchTerm]: The term to search for in Exec commands
+/// [Mapping<String, String>]: The matching Exec resources
+function searchCommands(searchTerm: String?): Mapping<String, String> =
+    if (searchTerm != null)
+        getFilteredResources("command", "contains", searchTerm)
+    else new Mapping<String, String> {}
+
+/// Gets Exec resources with successful execution using relational algebra
+/// Uses cached select operations for exit code filtering
+///
+/// [Mapping<String, String>]: The Exec resources with successful execution
+function getSuccessfulExecutions(): Mapping<String, String> =
+    getFilteredResources("exitCode", "eq", 0)
+
+/// Gets Exec resources by timestamp range using relational algebra
+/// Uses cached select operations for time-based filtering
+///
+/// [startTime]: Start timestamp
+/// [endTime]: End timestamp
+/// [Mapping<String, String>]: The Exec resources in the time range
+function getResourcesByTimeRange(startTime: Dynamic, endTime: Dynamic): Mapping<String, String> =
+    if (startTime != null && endTime != null)
+        let (selectionConditions = new Listing<pklres.SelectionCondition> {
+            new pklres.SelectionCondition {
+                field = "timestamp"
+                operator = "gte"
+                value = startTime
+            }
+            new pklres.SelectionCondition {
+                field = "timestamp"
+                operator = "lte"
+                value = endTime
+            }
+        })
+        let (selection = pklres.select("exec", selectionConditions))
+        if (selection != null && selection.rows != null)
+            new Mapping<String, String> {
+                for (row in selection.rows) {
+                    when (row.data.containsKey("key") && row.data.containsKey("value")) {
+                        [row.data["key"].toString()] = row.data["value"].toString()
+                    }
+                }
+            }
+        else new Mapping<String, String> {}
+    else new Mapping<String, String> {}
+
+/// Clears the query cache for Exec operations
+function clearCache(): String = pklres.clearCache()
+
+/// Sets the cache TTL for Exec query caching
+/// [ttlSeconds]: Time to live in seconds
+function setCacheTTL(ttlSeconds: Int): String = pklres.setCacheTTL(ttlSeconds)
+
+/// Gets cache statistics for Exec operations
+function getCacheStats(): Dynamic = pklres.getCacheStats()
+
+/// Performs a cached Exec query with automatic caching
+/// [queryType]: Type of query ("select", "project", "join")
+/// [params]: Query parameters
+function queryWithCache(queryType: String?, params: Dynamic): Dynamic = pklres.queryWithCache(queryType, params)

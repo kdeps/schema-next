@@ -1,0 +1,203 @@
+/// Common validation patterns and regex definitions
+/// This module provides standardized validation functions and regular expressions
+/// to ensure consistent input validation across all resource modules.
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/validation" }
+
+open module org.kdeps.pkl.Validation
+
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "Common.pkl" as common
+
+/// Standard HTTP methods regex (includes OPTIONS for CORS support)
+hidden standardHttpMethodRegex = Regex(#"^(?i:(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS))$"#)
+
+/// Standard action ID regex (supports @package/action:version format)
+hidden standardActionIdRegex = Regex(#"^(\w+|@\w+(/[\w-]+)(:[\w.]+)?)$"#)
+
+/// Standard environment variable name regex (POSIX compliant)
+hidden standardEnvNameRegex = Regex(#"^[a-zA-Z_]\w*$"#)
+
+/// Standard version regex (semantic versioning compatible)
+hidden standardVersionRegex = Regex(#"^(\d+\.)?(\d+\.)?(\*|\d+)(-[\w.-]+)?(\+[\w.-]+)?$"#)
+
+/// Standard URL regex (basic URL validation)
+hidden standardUrlRegex = Regex(#"^https?://[\w.-]+(:\d+)?(/.*)?$"#)
+
+/// Standard identifier regex (general purpose alphanumeric identifiers)
+hidden standardIdentifierRegex = Regex(#"^[a-zA-Z][\w-]*$"#)
+
+/// Standard file path regex (Unix-style paths)
+hidden standardFilePathRegex = Regex(#"^(/[\w.-]+)+/?$"#)
+
+/// Validates HTTP method with comprehensive error messaging
+///
+/// @param method The HTTP method string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidHttpMethod(method: String?) =
+  if (method != null && method.matches(standardHttpMethodRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "HTTP method", 
+      "GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS (case insensitive)", 
+      method
+    ))
+
+/// Validates action ID with support for package notation
+///
+/// @param actionId The action ID string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidActionId(actionId: String?) =
+  if (actionId != null && actionId.matches(standardActionIdRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "action ID", 
+      "alphanumeric string or @package/action:version format", 
+      actionId
+    ))
+
+/// Validates environment variable name (POSIX compliant)
+///
+/// @param envName The environment variable name to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidEnvName(envName: String?) =
+  if (envName != null && envName.matches(standardEnvNameRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "environment variable name", 
+      "start with letter/underscore, contain only alphanumeric characters and underscores", 
+      envName
+    ))
+
+/// Validates semantic version string
+///
+/// @param version The version string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidVersion(version: String?) =
+  if (version != null && version.matches(standardVersionRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "version", 
+      "semantic version format (e.g., 1.2.3, 1.2.*, 1.2.3-alpha+build)", 
+      version
+    ))
+
+/// Validates URL format (basic HTTP/HTTPS validation)
+///
+/// @param url The URL string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidUrl(url: String?) =
+  if (url != null && url.matches(standardUrlRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "URL", 
+      "valid HTTP or HTTPS URL format", 
+      url
+    ))
+
+/// Validates general identifier (for names, IDs, etc.)
+///
+/// @param identifier The identifier string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidIdentifier(identifier: String?) =
+  if (identifier != null && identifier.matches(standardIdentifierRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "identifier", 
+      "start with letter, contain only alphanumeric characters and hyphens", 
+      identifier
+    ))
+
+/// Validates Unix-style file path
+///
+/// @param filePath The file path string to validate
+/// @return True if valid, throws descriptive error if invalid
+function isValidFilePath(filePath: String?) =
+  if (filePath != null && filePath.matches(standardFilePathRegex)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      "file path", 
+      "Unix-style absolute path (e.g., /path/to/file)", 
+      filePath
+    ))
+
+/// Validates string is not null or empty
+///
+/// @param value The string value to validate
+/// @param fieldName The name of the field for error messaging
+/// @return True if valid, throws descriptive error if invalid
+function isNotNullOrEmpty(value: String?, fieldName: String) =
+  if (!common.isNullOrEmpty(value)) 
+    true 
+  else 
+    throw(common.formatValidationError(
+      fieldName, 
+      "non-null and non-empty string", 
+      value
+    ))
+
+/// Validates string length is within bounds
+///
+/// @param value The string value to validate
+/// @param fieldName The name of the field for error messaging
+/// @param minLength Minimum allowed length (default: 0)
+/// @param maxLength Maximum allowed length (default: 1000)
+/// @return True if valid, throws descriptive error if invalid
+function isValidLength(value: String?, fieldName: String, minLength: Int, maxLength: Int) =
+  if (value != null)
+    let (length = value.length)
+    if (length >= minLength && length <= maxLength)
+      true
+    else
+      throw(common.formatValidationError(
+        fieldName + " length", 
+        "between \(minLength) and \(maxLength) characters", 
+        "\(length) characters"
+      ))
+  else if (minLength == 0)
+    true
+  else
+    throw(common.formatValidationError(
+      fieldName, 
+      "non-null string with minimum length \(minLength)", 
+      "null"
+    ))
+
+/// Validates string length with default limits (0-1000)
+/// @param value The string value to validate
+/// @param fieldName The name of the field for error messaging
+/// @return True if valid, throws descriptive error if invalid
+function isValidLengthWithDefaults(value: String?, fieldName: String) =
+  isValidLength(value, fieldName, 0, 1000)
+
+/// Validates numeric range for integers
+///
+/// @param value The integer value to validate
+/// @param fieldName The name of the field for error messaging
+/// @param minValue Minimum allowed value (inclusive)
+/// @param maxValue Maximum allowed value (inclusive)
+/// @return True if valid, throws descriptive error if invalid
+function isValidRange(value: Int?, fieldName: String, minValue: Int, maxValue: Int) =
+  if (value != null)
+    if (value >= minValue && value <= maxValue)
+      true
+    else
+      throw(common.formatValidationError(
+        fieldName, 
+        "between \(minValue) and \(maxValue) (inclusive)", 
+        value.toString()
+      ))
+  else
+    throw(common.formatValidationError(
+      fieldName, 
+      "non-null integer between \(minValue) and \(maxValue)", 
+      "null"
+    ))

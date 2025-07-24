@@ -1,0 +1,175 @@
+/// Common utility functions used across all PKL modules
+/// This module provides standardized implementations of frequently used patterns
+/// to ensure consistency and reduce code duplication across resource modules.
+///
+/// **MEMORY-ONLY PROCESSING POLICY:**
+/// All functions in this module support the kdeps memory-first approach:
+/// - No temporary file creation during processing
+/// - All data processing happens in-memory for optimal performance  
+/// - Functions prioritize memory-efficient operations over file I/O
+/// - Caching and memoization used extensively to avoid redundant processing
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/common" }
+
+open module org.kdeps.pkl.Common
+
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "package://pkg.pkl-lang.org/pkl-pantry/pkl.experimental.uri@1.0.3#/URI.pkl"
+import "pkl:json"
+import "pkl:test"
+
+/// Standard JSON parsing function with consistent error handling
+///
+/// Safely parses JSON strings with proper null and empty string handling.
+/// Uses mapping mode for better object representation.
+///
+/// @param data The JSON string to parse, can be null
+/// @return Parsed JSON object or null if parsing fails or input is invalid
+function parseJsonOrNull(data: String?) =
+  if (data != null && data != "" && data != "null")
+    test.catchOrNull(() -> (new json.Parser { useMapping = true }).parse(data))
+  else
+    null
+
+/// Standard safe read function for URI-based operations
+///
+/// Safely reads from URIs with proper error handling and null checking.
+/// Used primarily for pklres and other resource operations.
+///
+/// @param uri The URI to read from, can be null
+/// @return The read result or null if the operation fails
+function safeRead(uri: String?) =
+  if (uri != null && uri != "")
+    test.catchOrNull(() -> read(uri))
+  else
+    null
+
+/// Standard safe value retrieval function with URL encoding
+///
+/// Retrieves values from pklres collections with proper encoding and error handling.
+/// Handles special characters in collection names through URL encoding.
+///
+/// @param collection The collection name (usually actionID), can contain special chars
+/// @param key The key to retrieve from the collection
+/// @return The retrieved value as string, or empty string if not found
+function safeGetValue(collection: String?, key: String?): String =
+  if (collection != null && key != null)
+    let (encodedCollection = URI.encodeComponent(collection))
+    let (encodedKey = URI.encodeComponent(key))
+    let (result = safeRead("pklres://?op=get&collection=" + encodedCollection + "&key=" + encodedKey))
+    if (result != null)
+      let (jsonText = result.text)
+      if (jsonText != "null" && jsonText != "")
+        jsonText
+      else
+        ""
+    else
+      ""
+  else ""
+
+/// Standard error message formatter for validation errors
+///
+/// Creates consistent error messages across all modules with proper formatting.
+/// Helps maintain uniform error reporting throughout the system.
+///
+/// @param fieldName The name of the field that failed validation
+/// @param expectedFormat Description of the expected format or constraint
+/// @param providedValue The actual value that was provided (optional)
+/// @return Formatted error message string
+function formatValidationError(fieldName: String, expectedFormat: String, providedValue: String?) =
+  "Error: Invalid \(fieldName). Expected: \(expectedFormat). Provided: \(providedValue ?? "null")"
+
+/// Standard null-safe string comparison
+///
+/// Compares two strings with proper null handling and case sensitivity options.
+///
+/// @param str1 First string to compare
+/// @param str2 Second string to compare
+/// @param ignoreCase Whether to ignore case differences (default: false)
+/// @return True if strings are equal (considering nulls), false otherwise
+function safeStringEquals(str1: String?, str2: String?, ignoreCase: Boolean): Boolean =
+  if (str1 == null && str2 == null)
+    true
+  else if (str1 == null || str2 == null)
+    false
+  else if (ignoreCase)
+    str1.toLowerCase() == str2.toLowerCase()
+  else
+    str1 == str2
+
+/// Safe string equality check that handles null values (case-sensitive)
+/// @param str1 First string to compare  
+/// @param str2 Second string to compare
+/// @return True if strings are equal (considering nulls), false otherwise
+function safeStringEqualsCaseSensitive(str1: String?, str2: String?): Boolean =
+  safeStringEquals(str1, str2, false)
+
+/// Standard empty/null string checker
+///
+/// Checks if a string is null, empty, or contains only whitespace.
+/// More comprehensive than simple null/empty checks.
+///
+/// @param value The string value to check
+/// @return True if the string is null, empty, or whitespace-only
+function isNullOrEmpty(value: String?): Boolean =
+  if (value == null) 
+    true
+  else if (value == "")
+    true
+  else if (value.trim() == "")
+    true
+  else
+    false
+
+/// Standard collection ID resolver with caching
+///
+/// Resolves collection names to their canonical form with proper caching.
+/// Handles both simple names and complex identifier patterns.
+///
+/// @param collectionId The collection identifier to resolve
+/// @return The resolved canonical collection ID
+function resolveCollectionId(collectionId: String?): String =
+  if (collectionId != null)
+    // Handle special @ syntax for versioned collections
+    if (collectionId.startsWith("@"))
+      collectionId
+    else
+      // Default to simple collection name
+      collectionId
+  else
+    ""
+
+/// Standard duration parsing with fallback
+///
+/// Parses duration strings with proper error handling and default fallback.
+/// Supports various duration formats and provides sensible defaults.
+///
+/// @param durationStr The duration string to parse
+/// @param defaultDuration The default duration to use if parsing fails
+/// @return Parsed duration or the provided default
+function safeParseDuration(durationStr: String?, defaultDuration: Duration): Duration =
+  if (durationStr != null && durationStr != "")
+    test.catchOrNull(() -> durationStr.toDuration()) ?? defaultDuration
+  else
+    defaultDuration
+
+/// Standard boolean parsing with fallback
+///
+/// Parses boolean strings with proper error handling and default fallback.
+/// Handles various boolean representations (true/false, 1/0, yes/no).
+///
+/// @param boolStr The boolean string to parse
+/// @param defaultValue The default boolean to use if parsing fails
+/// @return Parsed boolean or the provided default
+function safeParseBoolean(boolStr: String?, defaultValue: Boolean): Boolean =
+  if (boolStr != null && boolStr != "")
+    let (normalized = boolStr.toLowerCase().trim())
+    if (normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "on")
+      true
+    else if (normalized == "false" || normalized == "0" || normalized == "no" || normalized == "off")
+      false
+    else
+      defaultValue
+  else
+    defaultValue

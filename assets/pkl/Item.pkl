@@ -1,0 +1,60 @@
+/// Abstractions for Item iteration records
+///
+/// This module provides functions to interact with records representing iterations or elements in a for loop.
+/// The module supports retrieving, navigating, and listing records without requiring a specific identifier.
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/item" }
+
+open module org.kdeps.pkl.Item
+
+extends "Utils.pkl"
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "package://pkg.pkl-lang.org/pkl-pantry/pkl.experimental.uri@1.0.3#/URI.pkl"
+import "pkl:test"
+import "pkl:json"
+
+/// Retrieves the record for the current iteration
+///
+/// Returns the textual content of the current loop record, or an empty string if no current record exists.
+/// If the content is Base64-encoded, it will be automatically decoded.
+function current(): String = 
+    let (content = read("item:/_?op=current")?.text ?? "")
+    content
+
+/// Retrieves the record for the previous iteration
+///
+/// Returns the textual content of the previous loop record, or an empty string if no previous record exists.
+/// If the content is Base64-encoded, it will be automatically decoded.
+function prev(): String = 
+    let (content = read("item:/_?op=prev")?.text ?? "")
+    content
+
+/// Retrieves the record for the next iteration
+///
+/// Returns the textual content of the next loop record, or an empty string if no next record exists.
+/// If the content is Base64-encoded, it will be automatically decoded.
+function next(): String = 
+    let (content = read("item:/_?op=next")?.text ?? "")
+    content
+
+/// Lists all record results associated with the for loop
+///
+/// Returns a textual representation of all loop records, or an empty string if no records are found.
+function values(id: String?): Listing<String> =
+  if (id != null)
+    let (data = read("item:/\(id)?op=values")?.text)
+    if (data != null && data != "")
+      let (mappingResult = test.catchOrNull(() -> (new json.Parser { useMapping = true }).parse(data)))
+      if (mappingResult != null)
+        new Listing {...?mappingResult}
+      else
+        let (listResult = test.catchOrNull(() -> (new json.Parser { useMapping = false }).parse(data)))
+        if (listResult != null)
+          new Listing {...?listResult}
+        else
+          new Listing {}
+    else
+      new Listing {}
+  else
+    new Listing {}

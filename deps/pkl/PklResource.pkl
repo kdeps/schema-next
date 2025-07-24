@@ -1,0 +1,94 @@
+/// Generic key-value store abstractions for PKL
+/// No schema restrictions - can store anything from shallow to deep nested data
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/pkl_resource" }
+
+open module org.kdeps.pkl.PklResource
+
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "package://pkg.pkl-lang.org/pkl-pantry/pkl.experimental.uri@1.0.3#/URI.pkl"
+import "pkl:json"
+import "Core.pkl" as core
+
+/// Gets a value from the generic key-value store
+/// Collection keys are always actionIDs, scope is graphID
+/// Returns the value as a string, or empty string if not found
+function get(collectionKey: String?, key: String?): String = core.get(collectionKey, key)
+
+/// Sets a value in the generic key-value store
+/// Collection keys are always actionIDs, scope is graphID
+/// Returns the set value as confirmation, or empty string if failed
+function set(collectionKey: String?, key: String?, value: String?): String = core.set(collectionKey, key, value)
+
+/// Lists all keys in a collection
+/// Collection keys are always actionIDs, scope is graphID
+/// Returns a listing of keys, or empty listing if not found
+function list(collectionKey: String?): Listing<String> = core.list(collectionKey)
+
+/// Relational Algebra Functions
+
+class SelectionCondition {
+  field: String
+  operator: String // "eq", "ne", "gt", "lt", "gte", "lte", "contains", "in"
+  value: Dynamic
+}
+
+class ProjectionCondition {
+  columns: Listing<String> = emptyList
+  exclude: Listing<String> = emptyList
+}
+
+class JoinCondition {
+  leftCollection: String
+  rightCollection: String
+  leftKey: String
+  rightKey: String
+  joinType: String // "inner", "left", "right", "full"
+}
+
+class RelationalResult {
+  rows: Listing<Dynamic>
+  columns: Listing<String>
+  query: String
+  ttl: String
+}
+
+/// Performs a selection operation (filtering) on a collection
+/// Uses query caching to avoid repeated operations
+function select(collectionKey: String?, conditions: Listing<SelectionCondition>): RelationalResult =
+  let (conditionsJson = json.encode(conditions))
+  let (result = core.relationalSelect(collectionKey, conditionsJson))
+  json.decode(result)
+
+/// Performs a projection operation (column selection) on a collection
+/// Uses query caching to avoid repeated operations
+function project(collectionKey: String?, condition: ProjectionCondition): RelationalResult =
+  let (conditionJson = json.encode(condition))
+  let (result = core.relationalProject(collectionKey, conditionJson))
+  json.decode(result)
+
+/// Performs a join operation between two collections
+/// Uses query caching to avoid repeated operations
+function join(condition: JoinCondition): RelationalResult =
+  let (conditionJson = json.encode(condition))
+  let (result = core.relationalJoin(conditionJson))
+  json.decode(result)
+
+/// Clears the query cache for the current graph
+function clearCache(): String = core.clearCache()
+
+/// Sets the cache TTL (time-to-live) for cached queries
+function setCacheTTL(ttlSeconds: Int): String = core.setCacheTTL(ttlSeconds)
+
+/// Gets cache statistics
+function getCacheStats(): Dynamic =
+  let (result = core.getCacheStats())
+  json.decode(result)
+
+/// Performs a query with automatic caching to avoid repeated operations
+function queryWithCache(queryType: String, params: Dynamic): RelationalResult =
+  let (paramsJson = json.encode(params))
+  let (result = core.queryWithCache(queryType, paramsJson))
+  json.decode(result)
+

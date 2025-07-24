@@ -1,0 +1,97 @@
+{
+  "id": "bench_1752213102",
+  "timestamp": "2025-07-11T07:51:42.570327+02:00",
+  "suite_name": "performance",
+  "results": {
+    "fast_operation": {
+      "name": "fast_operation",
+      "duration": 1184915,
+      "memory_usage": 0,
+      "cpu_usage": 0,
+      "iterations": 10,
+      "operations": 10,
+      "ops_per_second": 8439.423924922885,
+      "memory_per_op": 0,
+      "timestamp": "2025-07-11T07:51:42.570443+02:00",
+      "percentiles": {
+        "p50": 1184913,
+        "p90": 1206619,
+        "p95": 1206619,
+        "p99": 1206619,
+        "p999": 1206619
+      },
+      "statistics": {
+        "mean": 1184915.1,
+        "median": 1186857,
+        "std_dev": 26436.08426923322,
+        "min": 1131780,
+        "max": 1239525
+      }
+    },
+    "medium_operation": {
+      "name": "medium_operation",
+      "duration": 10551819,
+      "memory_usage": 0,
+      "cpu_usage": 0,
+      "iterations": 10,
+      "operations": 10,
+      "ops_per_second": 947.7038982567839,
+      "memory_per_op": 0,
+      "timestamp": "2025-07-11T07:51:42.585816+02:00",
+      "percentiles": {
+        "p50": 10265826,
+        "p90": 11099463,
+        "p95": 11099463,
+        "p99": 11099463,
+        "p999": 11099463
+      },
+      "statistics": {
+        "mean": 10551819.7,
+        "median": 10467988,
+        "std_dev": 426796.32451933087,
+        "min": 10047742,
+        "max": 11123899
+      }
+    },
+    "slow_operation": {
+      "name": "slow_operation",
+      "duration": 100651617,
+      "memory_usage": 0,
+      "cpu_usage": 0,
+      "iterations": 10,
+      "operations": 10,
+      "ops_per_second": 99.35260155830383,
+      "memory_per_op": 0,
+      "timestamp": "2025-07-11T07:51:42.723005+02:00",
+      "percentiles": {
+        "p50": 100646756,
+        "p90": 101063764,
+        "p95": 101063764,
+        "p99": 101063764,
+        "p999": 101063764
+      },
+      "statistics": {
+        "mean": 100651617.8,
+        "median": 100734543,
+        "std_dev": 364489.7157818859,
+        "min": 100085645,
+        "max": 101127937
+      }
+    }
+  },
+  "environment": {
+    "arch": "amd64",
+    "go_version": "1.24",
+    "platform": "darwin",
+    "timestamp": "2025-07-11T07:51:42+02:00"
+  },
+  "summary": {
+    "total_benchmarks": 3,
+    "passed": 3,
+    "failed": 0,
+    "total_duration": 112388351,
+    "avg_ops_per_sec": 3162.1601415793243,
+    "best_performer": "fast_operation",
+    "worst_performer": "slow_operation"
+  }
+}

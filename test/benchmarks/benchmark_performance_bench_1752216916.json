@@ -1,0 +1,72 @@
+{
+  "id": "bench_1752216916",
+  "timestamp": "2025-07-11T08:55:16.960297+02:00",
+  "suite_name": "performance",
+  "results": {
+    "test1": {
+      "name": "test1",
+      "duration": 1203925,
+      "memory_usage": 0,
+      "cpu_usage": 0,
+      "iterations": 10,
+      "operations": 10,
+      "ops_per_second": 8306.165251157672,
+      "memory_per_op": 0,
+      "timestamp": "2025-07-11T08:55:16.960312+02:00",
+      "percentiles": {
+        "p50": 1206701,
+        "p90": 1263763,
+        "p95": 1263763,
+        "p99": 1263763,
+        "p999": 1263763
+      },
+      "statistics": {
+        "mean": 1203925.1,
+        "median": 1207421,
+        "std_dev": 54327.231505847965,
+        "min": 1079711,
+        "max": 1279401
+      }
+    },
+    "test2": {
+      "name": "test2",
+      "duration": 2333872,
+      "memory_usage": 0,
+      "cpu_usage": 0,
+      "iterations": 10,
+      "operations": 10,
+      "ops_per_second": 4284.725126313697,
+      "memory_per_op": 0,
+      "timestamp": "2025-07-11T08:55:16.975936+02:00",
+      "percentiles": {
+        "p50": 2328625,
+        "p90": 2421365,
+        "p95": 2421365,
+        "p99": 2421365,
+        "p999": 2421365
+      },
+      "statistics": {
+        "mean": 2333872.2,
+        "median": 2341628.5,
+        "std_dev": 98578.86306282903,
+        "min": 2127468,
+        "max": 2505022
+      }
+    }
+  },
+  "environment": {
+    "arch": "amd64",
+    "go_version": "1.24",
+    "platform": "darwin",
+    "timestamp": "2025-07-11T08:55:16+02:00"
+  },
+  "summary": {
+    "total_benchmarks": 2,
+    "passed": 2,
+    "failed": 0,
+    "total_duration": 3537797,
+    "avg_ops_per_sec": 6295.4451887356845,
+    "best_performer": "test1",
+    "worst_performer": "test2"
+  }
+}

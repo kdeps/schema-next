@@ -1,0 +1,89 @@
+/// Configuration for the Kdeps API Server
+///
+/// This module defines the settings and routes for the Kdeps API Server, including server binding details
+/// (host and port) and route configurations. The server handles HTTP requests, routing them to appropriate
+/// handlers based on defined paths and HTTP methods.
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/api_server" }
+
+open module org.kdeps.pkl.APIServer
+
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+import "APIServerResponse.pkl"
+import "APIServerRequest.pkl"
+
+/// Class representing the configuration settings for the API server.
+class APIServerSettings {
+        /// The IP address the server binds to (default: "127.0.0.1")
+        HostIP: String? = "127.0.0.1"
+
+        /// The port the server listens on (default: 3000)
+        PortNum: UInt16? = 3000
+
+        /// The timeout duration (in seconds) for API requests. Defaults to 60 seconds.
+        TimeoutDuration: Duration? = 60.s
+
+        /// A listing of trusted proxies (IPv4, IPv6, or CIDR ranges).
+        /// If set, only requests passing through these proxies will have their `X-Forwarded-For`
+        /// header trusted.
+        /// If unset, all proxies—including potentially malicious ones—are considered trusted,
+        /// which may expose the server to IP spoofing and other attacks.
+        TrustedProxies: Listing<String>?
+
+        /// List of routes configured for the server
+        Routes: Listing<APIServerRoutes>?
+
+        /// CORS settings for the API server
+        CORS: CORS?
+}
+
+/// Class representing a route in the API server configuration.
+class APIServerRoutes {
+        /// Regular expression for validating HTTP methods allowed by the API server.
+        hidden apiServerMethodRegex = Regex(#"^(?i:(GET|POST|PUT|PATCH|OPTIONS|DELETE|HEAD))"#)
+
+        /// Validates the HTTP method according to the API server's supported methods.
+        ///
+        /// Throws an error if the provided method is not supported.
+        hidden isValidHTTPMethod = (str) -> if (str.matches(apiServerMethodRegex)) true else throw("Error: Unsupported HTTP method. The provided HTTP method is not supported. Please use one of the following methods: GET, POST, PUT, PATCH, DELETE, OPTIONS, or HEAD.")
+
+        /// The URL path for the route
+        Path: String
+
+        /// The HTTP methods for the route (GET, POST, etc.)
+        Methods: Listing<String(isValidHTTPMethod)>
+}
+
+/// Cross-Origin Resource Sharing (CORS) configuration
+class CORS {
+        /// Regular expression for validating HTTP methods in CORS configuration.
+        hidden methodRegex = Regex(#"^(?i:(GET|POST|PUT|PATCH|OPTIONS|DELETE|HEAD))"#)
+
+        /// Validates HTTP methods for CORS configuration.
+        ///
+        /// Throws an error if the method is not supported
+        hidden isValidHTTPMethod = (str) -> if (str.matches(methodRegex)) true else
+        throw("Unsupported HTTP method. Use: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD")
+
+        /// Enable Cross-Origin Resource Sharing (CORS) for the API server
+        EnableCORS: Boolean? = false
+
+        /// List of allowed origins for CORS
+        AllowOrigins: Listing<String>?
+
+        /// List of allowed HTTP methods for CORS
+        AllowMethods: Listing<String(isValidHTTPMethod)>?
+
+        /// List of allowed headers for CORS
+        AllowHeaders: Listing<String>?
+
+        /// List of exposed headers for CORS
+        ExposeHeaders: Listing<String>?
+
+        /// Maximum age for CORS preflight requests (in seconds)
+        MaxAge: Duration?
+
+        /// Allow credentials in CORS requests
+        AllowCredentials: Boolean? = true
+}

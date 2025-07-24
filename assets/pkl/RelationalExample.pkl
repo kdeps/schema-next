@@ -1,0 +1,179 @@
+/// Example demonstrating relational algebra operations in pklres
+/// This file shows how to use select, project, join, and cache operations
+/// to avoid repeated queries and improve performance
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+open module org.kdeps.pkl.RelationalExample
+
+import "PklResource.pkl" as pklres
+import "pkl:json"
+
+/// Example class containing all relational algebra demonstrations
+class RelationalExamples {
+  /// Example data setup - stores sample data in pklres
+  function setupExampleData() {
+    // Store user data
+    pklres.set("userResource", "user1", json.encode({
+      id = "user1"
+      name = "Alice"
+      age = 25
+      department = "engineering"
+    }))
+    
+    pklres.set("userResource", "user2", json.encode({
+      id = "user2"
+      name = "Bob"
+      age = 30
+      department = "marketing"
+    }))
+    
+    pklres.set("userResource", "user3", json.encode({
+      id = "user3"
+      name = "Charlie"
+      age = 35
+      department = "engineering"
+    }))
+    
+    // Store order data
+    pklres.set("orderResource", "order1", json.encode({
+      id = "order1"
+      userId = "user1"
+      amount = 100.50
+      status = "completed"
+    }))
+    
+    pklres.set("orderResource", "order2", json.encode({
+      id = "order2"
+      userId = "user2"
+      amount = 250.75
+      status = "pending"
+    }))
+    
+    pklres.set("orderResource", "order3", json.encode({
+      id = "order3"
+      userId = "user1"
+      amount = 75.25
+      status = "completed"
+    }))
+  }
+
+  /// Example 1: Select operation - filter users by department
+  function selectEngineeringUsers() {
+    let conditions = new pklres.SelectionCondition {
+      field = "department"
+      operator = "eq"
+      value = "engineering"
+    }
+    
+    pklres.select("userResource", new Listing<pklres.SelectionCondition> { conditions })
+  }
+
+  /// Example 2: Select operation - filter users by age range
+  function selectUsersOver30() {
+    let conditions = new pklres.SelectionCondition {
+      field = "age"
+      operator = "gte"
+      value = 30
+    }
+    
+    pklres.select("userResource", new Listing<pklres.SelectionCondition> { conditions })
+  }
+
+  /// Example 3: Project operation - get only name and age columns
+  function projectUserNamesAndAges() {
+    let condition = new pklres.ProjectionCondition {
+      columns = ["name", "age"]
+    }
+    
+    pklres.project("userResource", condition)
+  }
+
+  /// Example 4: Project operation - exclude sensitive data
+  function projectUsersExcludeId() {
+    let condition = new pklres.ProjectionCondition {
+      exclude = ["id"]
+    }
+    
+    pklres.project("userResource", condition)
+  }
+
+  /// Example 5: Join operation - join users with their orders
+  function joinUsersAndOrders() {
+    let condition = new pklres.JoinCondition {
+      leftCollection = "userResource"
+      rightCollection = "orderResource"
+      leftKey = "id"
+      rightKey = "userId"
+      joinType = "inner"
+    }
+    
+    pklres.join(condition)
+  }
+
+  /// Example 6: Complex query - multiple conditions
+  function complexQuery() {
+    let conditions = new Listing<pklres.SelectionCondition> {
+      new pklres.SelectionCondition {
+        field = "department"
+        operator = "eq"
+        value = "engineering"
+      },
+      new pklres.SelectionCondition {
+        field = "age"
+        operator = "gte"
+        value = 25
+      }
+    }
+    
+    pklres.select("userResource", conditions)
+  }
+
+  /// Example 7: Cache management - set TTL
+  function setCacheTTL() {
+    pklres.setCacheTTL(300) // 5 minutes
+  }
+
+  /// Example 8: Cache management - get statistics
+  function getCacheStats() {
+    pklres.getCacheStats()
+  }
+
+  /// Example 9: Cache management - clear cache
+  function clearCache() {
+    pklres.clearCache()
+  }
+
+  /// Example 10: Cached query with automatic caching
+  function cachedQuery() {
+    let params = {
+      collectionKey = "userResource"
+      conditions = new Listing<pklres.SelectionCondition> {
+        new pklres.SelectionCondition {
+          field = "department"
+          operator = "eq"
+          value = "engineering"
+        }
+      }
+    }
+    
+    pklres.queryWithCache("select", params)
+  }
+
+  /// Run all examples in sequence
+  function runAllExamples() {
+    setupExampleData()
+    selectEngineeringUsers()
+    selectUsersOver30()
+    projectUserNamesAndAges()
+    projectUsersExcludeId()
+    joinUsersAndOrders()
+    complexQuery()
+    setCacheTTL()
+    getCacheStats()
+    clearCache()
+    cachedQuery()
+  }
+}
+
+/// Create an instance of the examples
+examples = new RelationalExamples {} 

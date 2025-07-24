@@ -1,0 +1,61 @@
+/// This module defines the settings and configurations for Docker-related
+/// resources within the KDEPS framework. It allows for the specification
+/// of package management, including additional package repositories (PPAs)
+/// and models to be used within Docker containers.
+@ModuleInfo { minPklVersion = "0.28.2" }
+
+@go.Package { name = "github.com/kdeps/schema/gen/docker" }
+
+open module org.kdeps.pkl.Docker
+
+import "package://pkg.pkl-lang.org/pkl-go/pkl.golang@0.10.0#/go.pkl"
+
+/// Class representing the settings for Docker configurations.
+/// It includes options for specifying packages, PPAs, and models.
+class DockerSettings {
+    /// Regular expression for validating Docker parameter names.
+    hidden paramStringRegex = Regex(#"^[a-zA-Z_]\w*$"#)
+
+    /// Function to check if a given params variable name is valid.
+    hidden isValidParams = (str) -> if (str.matches(paramStringRegex)) true else throw("Error: Invalid params name: The params name contains invalid characters. Please ensure it only includes alphanumeric characters (letters and numbers), does not start with a number, and is not empty.")
+
+    /// Sets the tag version to be use as the base image
+    OllamaTagVersion: String? = "latest"
+
+    /// Install Anaconda Python on the Docker container
+    InstallAnaconda: Boolean? = false
+
+    /// Sets the timezone (see the TZ Identifier here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+    Timezone: String? = "Etc/UTC"
+
+    /// Conda packages to install when `InstallAnaconda` is set to true.
+    ///
+    /// Example:
+    /// CondaPackages {
+    ///   ["base"] { // The name of the Anaconda environment
+    ///     ["main"] = "diffuser"  // Package "diffuser" from the "main" channel
+    ///   }
+    /// }
+    CondaPackages: Mapping<String, Mapping<String, String>>?
+
+    /// Python packages that will be pre-installed.
+    PythonPackages: Listing<String>?
+
+    /// A list of packages to be installed in the Docker container.
+    Packages: Listing<String>?
+
+    /// A list of APT or PPA repos to be added.
+    Repositories: Listing<String>?
+
+    /// A mandatory list of LLM models to be used in the Docker environment.
+    Models: Listing<String>
+
+    /// A mapping of build arguments variable name
+    Args: Mapping<String(isValidParams), String>?
+
+    /// A mapping of build env variable names that persist in the image and container
+    Env: Mapping<String(isValidParams), String>?
+
+    /// A list of ports to be exposed in the Docker container.
+    ExposedPorts: Listing<String>?
+}
